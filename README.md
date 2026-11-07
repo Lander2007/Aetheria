@@ -1,93 +1,101 @@
-<div align="center">
+# 🌌 Aetheria® — Architectural Time Depository
 
-  <!-- Logo / Header Banner -->
-  <br />
-  <h1>🌌 AETHERIA</h1>
-  <p><b>Cast your thoughts into the fabric of time.</b></p>
+> **"Preserve the unseen."**  
+> An award-winning, editorial scroll-driven time-capsule platform where users seal letters, photographs, and promises into cryptographic relics destined to awaken only in appointed future horizons.
 
-  <p>
-    An interactive, cyberpunk-inspired digital time capsule platform where users lock memories, messages, and goals into encrypted capsules destined to open only in the future.
-  </p>
-
-  <!-- Badges -->
-  <p>
-    <img src="https://img.shields.io/badge/Framework-Next.js%2014-black?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js" />
-    <img src="https://img.shields.io/badge/Language-TypeScript-blue?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/Styling-Tailwind%20CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
-    <img src="https://img.shields.io/badge/Animation-Framer%20Motion-purple?style=for-the-badge&logo=framer&logoColor=white" alt="Framer Motion" />
-    <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
-  </p>
-
-  <br />
-</div>
+[![Next.js 14](https://img.shields.io/badge/Framework-Next.js%2014-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/Language-TypeScript-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind%20CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Framer Motion](https://img.shields.io/badge/Motion-Framer%20Motion-purple?style=for-the-badge&logo=framer&logoColor=white)](https://www.framer.com/motion/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 ---
 
-<h2>🎨 Visual Identity & Theme</h2>
+## 🎨 Visual Identity & Color System
 
-<p>Aetheria features a <b>Cyberpunk Neon-Space Fusion</b> aesthetics powered by heavy Glassmorphism and ambient glow dynamics.</p>
+Aetheria features an architectural, editorial aesthetic driven by Swiss typography, exposed structural grid hairlines, and the **Yellow-Green & Creole Brown** master palette:
 
-<table>
-  <tr>
-    <td width="25%"><b>Deep Void</b><br /><code>#05050a</code></td>
-    <td width="25%"><b>Electric Lime</b><br /><code>#00ff87</code></td>
-    <td width="25%"><b>Violet Flare</b><br /><code>#7b2cbf</code></td>
-    <td width="25%"><b>Dark Glass</b><br /><code>rgba(15,15,26,0.6)</code></td>
-  </tr>
-</table>
-
----
-
-<h2>✨ Key Features</h2>
-
-<ul>
-  <li><b>🔮 Interactive 3D / Canvas Hero:</b> Ambient particle fields responding directly to cursor movement and spatial interaction.</li>
-  <li><b>⏳ Time-Locked Encryption:</b> Real-time countdown engine locking content until the exact specified timestamp.</li>
-  <li><b>🌌 Public Constellations:</b> Explore public capsules submitted by users floating across a dynamic space grid.</li>
-  <li><b>🔐 Passcode-Protected Storage:</b> Option to lock individual capsules with custom client-side encryption passcodes.</li>
-  <li><b>✨ Micro-Interactions:</b> Responsive UI state changes, glowing borders, and smooth Framer Motion transitions.</li>
-</ul>
+| Token | Hex / Value | Architectural Role |
+| :--- | :--- | :--- |
+| **`--bg-primary`** | `#C6E385` | Dominant 70%+ canvas background (Yellow Green Shade) |
+| **`--bg-lime-soft`** | `#D3EC9A` | Subtle highlight glow & atmospheric illumination |
+| **`--ink-creole`** | `#1F0E06` | Primary display typography, solid cards, & central monolith |
+| **`--surface-umber`** | `#2B150B` | Elevated card surfaces, bento wells, and chamber vaults |
+| **`--border-creole`** | `rgba(31, 14, 6, 0.16)` | Exposed 1px Swiss architectural grid lines |
+| **`--ink-muted`** | `rgba(31, 14, 6, 0.62)` | Secondary metadata, coordinates, and technical timestamps |
 
 ---
 
-<h2>🛠️ Tech Stack</h2>
+## 🏛️ Scroll-Driven Storytelling Chapters
 
-<p align="left">
-  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=next.js&logoColor=white" alt="Next.js" /></a>
-  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React" /></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" /></a>
-  <a href="https://www.framer.com/motion/"><img src="https://img.shields.io/badge/Framer_Motion-0055FF?style=flat-square&logo=framer&logoColor=white" alt="Framer Motion" /></a>
-  <a href="https://threejs.org/"><img src="https://img.shields.io/badge/Three.js-000000?style=flat-square&logo=three.js&logoColor=white" alt="Three.js" /></a>
-  <a href="https://lucide.dev/"><img src="https://img.shields.io/badge/Lucide_Icons-F1502F?style=flat-square&logo=lucide&logoColor=white" alt="Lucide" /></a>
-</p>
-
----
-
-<h2>📂 Project Structure</h2>
-
-<pre>
-aetheria/
-├── app/
-│   ├── layout.tsx         # Root layout with fonts & providers
-│   ├── page.tsx           # Home page with Hero & Public Feed
-│   └── globals.css        # Glassmorphism tokens & custom properties
-├── components/
-│   ├── ui/                # Reusable UI components (Buttons, Inputs)
-│   ├── Navbar.tsx         # Glassmorphism Navbar
-│   ├── HeroCanvas.tsx     # Interactive 3D/Particles canvas
-│   ├── CapsuleCard.tsx    # Card with live countdown logic
-│   └── CapsuleModal.tsx   # Capsule creation form drawer
-└── lib/
-    └── utils.ts           # Helper functions & time calculations
-</pre>
+1. **Act 0: Expanding Monolith Portal (Hero)**
+   - Centered Creole Brown (`#1F0E06`) 3D monolith on `#C6E385` canvas with rotating astrolabe rings.
+   - Smooth live year ticker counting from `2026` to `2100`.
+   - Monumental split headline (*"Preserve the"* splits left, *"unseen."* splits right) as the portal expands to swallow the viewport.
+2. **Act 1: The Manifesto Chamber**
+   - Immersive dark vault interior (`#1F0E06`) with word-by-word scroll-linked illumination and vertical progress gauge.
+3. **Act 2: Three Quiet Steps (Method)**
+   - 3D perspective stacked card deck on `#C6E385` canvas.
+   - Rolling mechanical phase counter (`01`, `02`, `03`) synchronized directly with scroll progress.
+4. **Act 3: Public Constellation Archive**
+   - Parallax horizontal timeline slider with live watermark year odometer (`2026` $\to$ `2051`).
+   - Archival cards with countdowns, metadata tags, and cryptographic status.
+5. **Act 4: Interactive Time-Lock Simulator**
+   - Interactive console allowing users to test time-locking to future years (`2028` $\to$ `2080`), input recipients and messages, and trigger cryptographic seal animations.
+6. **Act 5: Monumental Footer**
+   - Deep Creole Brown curtain with generous padding, display headline (*"What will you leave behind?"*), and quick navigation.
 
 ---
 
-<h2>🚀 Getting Started</h2>
+## 🚀 Getting Started
 
-<p>1. Clone the repository:</p>
+### Prerequisites
+- Node.js 18.17+ or 20+
+- npm, pnpm, or yarn
+
+### Installation
 
 ```bash
-git clone [https://github.com/your-username/aetheria.git](https://github.com/your-username/aetheria.git)
-cd aetheria
+# Clone the repository
+git clone https://github.com/Lander2007/Aetheria.git
+cd Aetheria
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Production Build
+
+```bash
+npm run build
+npm run start
+```
+
+---
+
+## 📂 Project Structure
+
+```
+Aetheria/
+├── app/
+│   ├── globals.css        # CSS variables & Tailwind directives
+│   ├── icon.svg           # Brand favicon vector
+│   ├── layout.tsx         # Root layout with fonts & theme metadata
+│   └── page.tsx           # Full scroll-driven experience (Acts 0–5)
+├── components/            # Reusable UI primitives & layout modules
+├── lib/                   # Utility helpers
+├── public/                # Static assets & vector marks
+├── tailwind.config.ts     # Architectural design tokens & themes
+└── tsconfig.json          # TypeScript compiler options
+```
+
+---
+
+## 📜 License
+
+Distributed under the MIT License.
