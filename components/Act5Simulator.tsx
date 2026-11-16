@@ -19,6 +19,9 @@ import {
   Clock,
   Archive,
   AlertCircle,
+  ImageIcon,
+  UploadCloud,
+  X as CloseIcon,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { TimeCapsule, CapsuleType, CapsuleVisibility } from "@/lib/types";
@@ -29,11 +32,20 @@ import {
   deleteStoredCapsule,
   seedDemoData,
 } from "@/lib/storage";
+import {
+  saveEncryptedImageRecord,
+  deleteEncryptedImageRecord,
+} from "@/lib/imageStore";
+import {
+  validateAndCompressImage,
+  CompressedImageResult,
+} from "@/lib/imageCompress";
 import { MagneticButton } from "./ui/MagneticButton";
 import { CapsuleModal } from "./CapsuleModal";
 
 interface Act5SimulatorProps {
   onCapsuleCreated?: (capsule: TimeCapsule) => void;
+  initialTab?: "forge" | "vault";
 }
 
 const TESTAMENT_PRESETS = [
@@ -111,8 +123,8 @@ const TIME_PRESETS = [
   },
 ];
 
-export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
-  const [activeTab, setActiveTab] = useState<"forge" | "vault">("forge");
+export function Act5Simulator({ onCapsuleCreated, initialTab = "forge" }: Act5SimulatorProps) {
+  const [activeTab, setActiveTab] = useState<"forge" | "vault">(initialTab);
   const [vaultFilter, setVaultFilter] = useState<"all" | "locked" | "unlocked">("all");
   const [selectedVaultCapsule, setSelectedVaultCapsule] = useState<TimeCapsule | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -124,6 +136,13 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
   const [visibility, setVisibility] = useState<CapsuleVisibility>("public");
   const [passcode, setPasscode] = useState("");
   const [message, setMessage] = useState("");
+
+  // Optional Image Upload State
+  const [compressedImage, setCompressedImage] = useState<CompressedImageResult | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [isCompressingImage, setIsCompressingImage] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Live Date and Time Picker State (defaults to +30 SEC for instant live demo readiness)
   const [unlockDate, setUnlockDate] = useState<string>(() => {
@@ -167,6 +186,15 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
     window.addEventListener("aetheria_vault_updated", handleUpdate);
     return () => window.removeEventListener("aetheria_vault_updated", handleUpdate);
   }, []);
+
+  // Clean up compressed image preview on unmount
+  useEffect(() => {
+    return () => {
+      if (compressedImage?.previewUrl) {
+        URL.revokeObjectURL(compressedImage.previewUrl);
+      }
+    };
+  }, [compressedImage]);
 
   // Target moment calculations & validation
   const targetMoment = useMemo(() => {
@@ -284,6 +312,57 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
     return `0x${hex}::${preview}...[AES-256-LIVE-CIPHER]`;
   }, [message]);
 
+  // Image file handler
+  const processImageFile = async (file: File) => {
+    setImageError(null);
+    setIsCompressingImage(true);
+    try {
+      const res = await validateAndCompressImage(file);
+      if (res.error) {
+        setImageError(res.error);
+        if (compressedImage?.previewUrl) {
+          URL.revokeObjectURL(compressedImage.previewUrl);
+        }
+        setCompressedImage(null);
+      } else if (res.result) {
+        if (compressedImage?.previewUrl) {
+          URL.revokeObjectURL(compressedImage.previewUrl);
+        }
+        setCompressedImage(res.result);
+      }
+    } catch {
+      setImageError("Failed to process image file.");
+    } finally {
+      setIsCompressingImage(false);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processImageFile(file);
+    }
+  };
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processImageFile(file);
+    }
+  };
+
+  const handleRemoveImage = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (compressedImage?.previewUrl) {
+      URL.revokeObjectURL(compressedImage.previewUrl);
+    }
+    setCompressedImage(null);
+    setImageError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const executeSeal = async () => {
     if (!message.trim() || !isValidEpoch || !targetMoment) return;
 
@@ -304,10 +383,11 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
         setIsScrambling(false);
 
         try {
-          // Encrypt payload with Web Crypto AES-GCM 256
+          // Encrypt payload with Web Crypto AES-GCM 256 (message + optional image)
           const encResult = await encryptCapsulePayload(
             message.trim(),
-            passcode.trim() || undefined
+            passcode.trim() || undefined,
+            compressedImage ? compressedImage.buffer : undefined
           );
 
           const finalTitle =
@@ -316,8 +396,26 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
               ? `To ${recipient.trim()}`
               : `Letter to ${targetMoment.getFullYear()}`);
 
+          const newCapsuleId = `capsule-${Date.now()}`;
+
+          // If image was attached, store encrypted image in IndexedDB
+          if (compressedImage && encResult.encryptedImage) {
+            try {
+              await saveEncryptedImageRecord({
+                capsuleId: newCapsuleId,
+                ciphertext: encResult.encryptedImage.ciphertext,
+                iv: encResult.encryptedImage.iv,
+                mimeType: compressedImage.mimeType,
+                originalName: compressedImage.originalName,
+                sizeBytes: compressedImage.sizeBytes,
+              });
+            } catch (idbErr) {
+              console.warn("[Aetheria] IndexedDB unavailable, saved without image:", idbErr);
+            }
+          }
+
           const newCapsule: TimeCapsule = {
-            id: `capsule-${Date.now()}`,
+            id: newCapsuleId,
             year: targetMoment.getFullYear(),
             targetDate: targetDateFormatted,
             targetDateIso: targetDateIso,
@@ -338,6 +436,9 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
             salt: encResult.salt,
             keyPackage: encResult.keyPackage,
             hasPasscode: encResult.hasPasscode,
+            hasImage: !!compressedImage,
+            imageName: compressedImage ? compressedImage.originalName : undefined,
+            imageSizeBytes: compressedImage ? compressedImage.sizeBytes : undefined,
           };
 
           // Save to local storage
@@ -409,6 +510,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
     setRecipient("");
     setPasscode("");
     setHoldProgress(0);
+    handleRemoveImage();
     const future = new Date(Date.now() + 30 * 1000);
     setUnlockDate(toLocalDateString(future));
     setUnlockTime(toLocalTimeString(future));
@@ -440,7 +542,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
     <section
       id="seal-lock"
       data-nav-theme="light"
-      className="relative w-full bg-[#E2E4E6] pt-28 pb-16 md:pt-36 md:pb-24 px-4 md:px-8 text-[#141416] overflow-hidden"
+      className="relative w-full bg-[#E2E4E6] pt-24 pb-16 md:pt-32 md:pb-24 px-4 md:px-8 text-[#141416] overflow-hidden"
     >
       {/* Elevated Recessed Floating Architectural Island */}
       <div className="max-w-[1440px] mx-auto rounded-[32px] sm:rounded-[40px] bg-[#D8DBDE]/60 backdrop-blur-md p-5 sm:p-12 md:p-16 border border-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_30px_80px_rgba(20,20,22,0.06)]">
@@ -458,7 +560,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
               Forge the <span className="font-editorial italic font-light text-[#FF4F00]">lock.</span>
             </h2>
             <p className="mt-4 max-w-xl font-sans text-sm md:text-base text-[#141416]/85 leading-relaxed">
-              Select an exact awakening epoch. Inscribe your testament, inspect the real-time cipher stream, and press-and-hold to forge your cryptographic time-lock.
+              Select an exact awakening epoch. Inscribe your testament, optionally attach an encrypted relic, and forge your cryptographic time-lock.
             </p>
 
             {/* Navigation Tabs (Forge vs Vault Registry) */}
@@ -571,7 +673,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                         </div>
                       </div>
 
-                      {/* REAL UNLOCK DATE AND TIME PICKER (ADD-ON REQUIREMENT) */}
+                      {/* REAL UNLOCK DATE AND TIME PICKER */}
                       <div className="flex flex-col gap-2.5 rounded-2xl bg-[#141416] p-4 sm:p-5 border border-white/10 shadow-inner">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                           <label
@@ -760,6 +862,98 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                         </div>
                       </div>
 
+                      {/* OPTIONAL IMAGE UPLOAD FIELD */}
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <label
+                            htmlFor="image-file-input"
+                            className="font-mono text-xs uppercase tracking-wider text-[#F7F7F5]/75 font-semibold flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <ImageIcon className="h-3.5 w-3.5 text-[#FF4F00]" />
+                            <span>ATTACH IMAGE (OPTIONAL)</span>
+                          </label>
+                          <span className="font-mono text-[10px] text-[#F7F7F5]/45">
+                            JPG, PNG, WEBP · MAX 8 MB
+                          </span>
+                        </div>
+
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handleFileInputChange}
+                          className="hidden"
+                          id="image-file-input"
+                        />
+
+                        {!compressedImage ? (
+                          <div
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setIsDragging(true);
+                            }}
+                            onDragLeave={() => setIsDragging(false)}
+                            onDrop={handleFileDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                            className={`rounded-xl border border-dashed p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 select-none ${
+                              isDragging
+                                ? "border-[#FF4F00] bg-[#FF4F00]/10"
+                                : "border-white/15 bg-[#1E1E22] hover:border-[#FF4F00]/50 hover:bg-[#232328]"
+                            }`}
+                          >
+                            <UploadCloud className="h-6 w-6 text-[#FF4F00]" />
+                            <div className="font-mono text-xs text-[#F7F7F5]/80">
+                              <span className="text-[#FF4F00] font-semibold">Click to choose image</span> or drag and drop
+                            </div>
+                            <span className="font-mono text-[10px] text-[#F7F7F5]/45">
+                              Client-compressed to max 1600px & AES-GCM 256 encrypted
+                            </span>
+                            {isCompressingImage && (
+                              <div className="flex items-center gap-2 font-mono text-xs text-[#FF4F00] mt-1">
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                <span>Compressing image on canvas...</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl bg-[#1E1E22] p-3 border border-[#FF4F00]/30 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="h-12 w-12 rounded-lg overflow-hidden bg-[#141416] border border-white/10 flex-shrink-0 relative">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={compressedImage.previewUrl}
+                                  alt="Preview"
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-mono text-xs text-[#F7F7F5] truncate font-semibold">
+                                  {compressedImage.originalName}
+                                </span>
+                                <span className="font-mono text-[10px] text-[#FF4F00] tabular-nums">
+                                  {(compressedImage.sizeBytes / 1024).toFixed(0)} KB · {compressedImage.width}×{compressedImage.height} · Ready to Encrypt
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleRemoveImage}
+                              className="rounded-full border border-white/15 bg-[#141416] px-3.5 py-1.5 font-mono text-[11px] text-rose-400 hover:text-white hover:bg-rose-600 hover:border-rose-600 transition-colors cursor-pointer flex-shrink-0"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
+
+                        {imageError && (
+                          <div className="flex items-center gap-1.5 text-[#FF4F00] text-xs font-mono mt-0.5 bg-[#FF4F00]/10 p-2 rounded-lg border border-[#FF4F00]/30">
+                            <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span>{imageError}</span>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Optional Passcode Input */}
                       <div className="flex flex-col gap-2">
                         <label
@@ -919,6 +1113,20 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                             </span>
                           </div>
 
+                          {sealedReceipt.hasImage && (
+                            <div className="sm:col-span-2">
+                              <span className="text-[#F7F7F5]/55 uppercase tracking-wider text-[10px] block mb-1">
+                                ATTACHED MEDIA SUBSTRATE
+                              </span>
+                              <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 bg-[#141416] p-2.5 rounded-xl border border-white/10">
+                                <ImageIcon className="h-4 w-4 text-[#FF4F00]" />
+                                <span>{sealedReceipt.imageName || "Image"}</span>
+                                <span className="text-[#F7F7F5]/40">•</span>
+                                <span className="text-[10px] text-[#F7F7F5]/60 uppercase">AES-256 Encrypted in IndexedDB</span>
+                              </div>
+                            </div>
+                          )}
+
                           <div className="sm:col-span-2 mt-2">
                             <span className="text-[#F7F7F5]/55 uppercase tracking-wider text-[10px] block mb-1">
                               INSCRIBED MESSAGE (STORED IN ENCRYPTED SUBSTRATE)
@@ -979,8 +1187,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                             type="button"
                             magneticStrength={0.4}
                             onClick={() => {
-                              const el = document.getElementById("act-archive");
-                              if (el) el.scrollIntoView({ behavior: "smooth" });
+                              window.location.href = "/#act-archive";
                             }}
                             className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-full border border-[#FF4F00] px-5 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-[#FF4F00] hover:bg-[#FF4F00]/15 cursor-pointer tabular-nums"
                           >
@@ -1102,7 +1309,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                         className="rounded-2xl bg-[#1E1E22] p-5 border border-white/5 hover:border-[#FF4F00]/30 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                       >
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1.5">
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
                             <span className="font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-white/10 text-[#F7F7F5]/80">
                               {capsule.category || "TESTAMENT"}
                             </span>
@@ -1118,6 +1325,11 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                             {capsule.hasPasscode && (
                               <span className="font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 flex items-center gap-1">
                                 <KeyRound className="h-3 w-3" /> PASSCODE
+                              </span>
+                            )}
+                            {capsule.hasImage && (
+                              <span className="font-mono text-[9px] uppercase px-2 py-0.5 rounded bg-[#FF4F00]/15 text-[#FF4F00] border border-[#FF4F00]/30 flex items-center gap-1 font-bold">
+                                <ImageIcon className="h-3 w-3" /> IMAGE
                               </span>
                             )}
                           </div>

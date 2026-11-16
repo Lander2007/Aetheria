@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -14,10 +14,12 @@ import {
   AlertCircle,
   Sparkles,
   Share2,
+  ImageIcon,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { TimeCapsule } from "@/lib/types";
-import { decryptCapsulePayload } from "@/lib/crypto";
+import { decryptCapsulePayload, decryptBinaryPayload } from "@/lib/crypto";
+import { getEncryptedImageRecord } from "@/lib/imageStore";
 import { useCountdown } from "@/hooks/useCountdown";
 
 interface CapsuleModalProps {
@@ -32,7 +34,19 @@ export function CapsuleModal({ capsule, onClose }: CapsuleModalProps) {
   const [passcodeError, setPasscodeError] = useState("");
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [decryptedText, setDecryptedText] = useState<string | null>(null);
+  const [decryptedImageUrl, setDecryptedImageUrl] = useState<string | null>(null);
+  const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [justAutoUnlocked, setJustAutoUnlocked] = useState(false);
+
+  // Keep track of active object URL for cleanup
+  const activeBlobUrlRef = useRef<string | null>(null);
+
+  const cleanupBlobUrl = useCallback(() => {
+    if (activeBlobUrlRef.current && activeBlobUrlRef.current.startsWith("blob:")) {
+      URL.revokeObjectURL(activeBlobUrlRef.current);
+      activeBlobUrlRef.current = null;
+    }
+  }, []);
 
   const handleUnlockEvent = useCallback(() => {
     setJustAutoUnlocked(true);
@@ -53,19 +67,44 @@ export function CapsuleModal({ capsule, onClose }: CapsuleModalProps) {
     handleUnlockEvent
   );
 
+  // Helper to decrypt and load image for non-passcode capsules
+  const loadNonPasscodeImage = useCallback(async (cap: TimeCapsule) => {
+    if (cap.hasImage) {
+      setIsLoadingImage(true);
+      try {
+        const record = await getEncryptedImageRecord(cap.id);
+        if (record && cap.keyPackage) {
+          const buf = await decryptBinaryPayload({
+            ciphertext: record.ciphertext,
+            iv: record.iv,
+            keyPackage: cap.keyPackage,
+          });
+          const blob = new Blob([buf], { type: record.mimeType });
+          cleanupBlobUrl();
+          const url = URL.createObjectURL(blob);
+          activeBlobUrlRef.current = url;
+          setDecryptedImageUrl(url);
+        }
+      } catch (err) {
+        console.warn("[Aetheria] Image auto-decrypt failed:", err);
+      } finally {
+        setIsLoadingImage(false);
+      }
+    } else if (cap.imageUrl) {
+      setDecryptedImageUrl(cap.imageUrl);
+    }
+  }, [cleanupBlobUrl]);
+
   // Reset local state when opened capsule changes
   useEffect(() => {
-    if (!capsule) {
-      setDecryptedText(null);
-      setPasscode("");
-      setPasscodeError("");
-      setJustAutoUnlocked(false);
-      return;
-    }
-
+    cleanupBlobUrl();
+    setDecryptedImageUrl(null);
+    setDecryptedText(null);
     setPasscode("");
     setPasscodeError("");
     setJustAutoUnlocked(false);
+
+    if (!capsule) return;
 
     // If already unlocked and not protected by passcode, auto-decrypt immediately
     if (capsule.targetTimestamp <= Date.now()) {
@@ -77,15 +116,16 @@ export function CapsuleModal({ capsule, onClose }: CapsuleModalProps) {
         })
           .then((text) => setDecryptedText(text))
           .catch(() => setDecryptedText(capsule.description));
+
+        loadNonPasscodeImage(capsule);
       } else if (!capsule.isEncrypted || !capsule.hasPasscode) {
         setDecryptedText(capsule.description);
+        loadNonPasscodeImage(capsule);
       }
-    } else {
-      setDecryptedText(null);
     }
-  }, [capsule]);
+  }, [capsule, cleanupBlobUrl, loadNonPasscodeImage]);
 
-  // When live countdown hits 0, auto-decrypt non-passcode capsules
+  // When live countdown hits 0, auto-decrypt non-passcode capsules and images
   useEffect(() => {
     if (countdown.isUnlocked && capsule && !decryptedText && !capsule.hasPasscode) {
       if (capsule.isEncrypted && capsule.ciphertext && capsule.iv && capsule.keyPackage) {
@@ -96,11 +136,21 @@ export function CapsuleModal({ capsule, onClose }: CapsuleModalProps) {
         })
           .then((text) => setDecryptedText(text))
           .catch(() => setDecryptedText(capsule.description));
+
+        loadNonPasscodeImage(capsule);
       } else {
         setDecryptedText(capsule.description);
+        loadNonPasscodeImage(capsule);
       }
     }
-  }, [countdown.isUnlocked, capsule, decryptedText]);
+  }, [countdown.isUnlocked, capsule, decryptedText, loadNonPasscodeImage]);
+
+  // Revoke object URLs on unmount
+  useEffect(() => {
+    return () => {
+      cleanupBlobUrl();
+    };
+  }, [cleanupBlobUrl]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -151,6 +201,34 @@ export function CapsuleModal({ capsule, onClose }: CapsuleModalProps) {
         passcode: passcode.trim(),
       });
       setDecryptedText(plain);
+
+      // Now decrypt image if attached
+      if (capsule.hasImage) {
+        setIsLoadingImage(true);
+        try {
+          const record = await getEncryptedImageRecord(capsule.id);
+          if (record) {
+            const buf = await decryptBinaryPayload({
+              ciphertext: record.ciphertext,
+              iv: record.iv,
+              salt: capsule.salt,
+              passcode: passcode.trim(),
+            });
+            const blob = new Blob([buf], { type: record.mimeType });
+            cleanupBlobUrl();
+            const url = URL.createObjectURL(blob);
+            activeBlobUrlRef.current = url;
+            setDecryptedImageUrl(url);
+          }
+        } catch (imgErr) {
+          console.warn("[Aetheria] Image passcode decrypt failed:", imgErr);
+        } finally {
+          setIsLoadingImage(false);
+        }
+      } else if (capsule.imageUrl) {
+        setDecryptedImageUrl(capsule.imageUrl);
+      }
+
       setPasscode("");
       try {
         confetti({
@@ -182,6 +260,7 @@ TIMEZONE SPEC:  UTC ISO: ${capsule.targetDateIso || "ARCHIVAL HOROLOGY"}
 CIPHER SUITE:   AES-256-GCM / VDF WESOLOWSKI PROTOCOL
 STORAGE MEDIUM: 5D OPTICAL QUARTZ SUBSTRATE (1,000+ YR HALF-LIFE)
 GEO-COORDINATE: 46.2044° N, 6.1432° E (SWISS HOROLOGICAL OBSERVATORY)
+MEDIA ATTACHED: ${capsule.hasImage ? `YES (${capsule.imageName || "Encrypted Image"})` : "NONE"}
 
 TEMPORAL AUDIT KEY (SHA-512):
 ${capsule.shaKey}
@@ -202,6 +281,9 @@ STATUS: ${countdown.isUnlocked ? "UNLOCKED & DECRYPTED" : "CRYPTOGRAPHICALLY TIM
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+  // Determine if the capsule is strictly locked or waiting for passcode
+  const isLockedOrWaitingPasscode = !countdown.isUnlocked || (capsule.hasPasscode && !decryptedText);
 
   return (
     <AnimatePresence>
@@ -255,27 +337,54 @@ STATUS: ${countdown.isUnlocked ? "UNLOCKED & DECRYPTED" : "CRYPTOGRAPHICALLY TIM
 
           {/* Photo & Main Details */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
-            <div className="md:col-span-5 relative h-56 md:h-full rounded-2xl overflow-hidden bg-[#1E1E22] min-h-[200px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={capsule.imageUrl}
-                alt={capsule.title}
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#1E1E22] via-transparent to-transparent opacity-80" />
-              <div className="absolute bottom-3 left-3 flex items-center gap-1.5 font-mono text-[10px] text-[#FF4F00] tabular-nums">
-                {countdown.isUnlocked ? (
-                  <>
+            {/* Visual Substrate Container: ZERO DOM <img> when locked */}
+            <div className="md:col-span-5 relative h-60 md:h-full rounded-2xl overflow-hidden bg-[#1E1E22] min-h-[220px] flex items-center justify-center border border-white/5">
+              {isLockedOrWaitingPasscode ? (
+                /* LOCKED STATE: Strictly NO <img> in DOM, NO network, NO blurred preview */
+                <div className="flex flex-col items-center justify-center p-6 text-center select-none w-full h-full bg-[#141416]/70">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1E1E22] border border-[#FF4F00]/30 mb-3 shadow-inner">
+                    <Lock className="h-5 w-5 text-[#FF4F00]" />
+                  </div>
+                  <span className="font-mono text-xs uppercase tracking-widest text-[#FF4F00] font-bold mb-1">
+                    {capsule.hasImage ? "IMAGE SEALED" : "MEDIA SEALED"}
+                  </span>
+                  <span className="font-mono text-[10px] text-[#F7F7F5]/50 uppercase tracking-wider tabular-nums">
+                    {capsule.hasImage && capsule.imageName ? capsule.imageName : `EPOCH ${capsule.year} · AES-256`}
+                  </span>
+                  <span className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141416] border border-white/10 font-mono text-[9px] text-[#F7F7F5]/60">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#FF4F00] animate-pulse" />
+                    SUBSTRATE TIME-LOCKED
+                  </span>
+                </div>
+              ) : (
+                /* UNLOCKED STATE: Decrypted image revealed with animation */
+                <div className="relative w-full h-full min-h-[220px]">
+                  {decryptedImageUrl ? (
+                    <motion.img
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                      src={decryptedImageUrl}
+                      alt={capsule.title}
+                      className="h-full w-full object-cover rounded-2xl"
+                    />
+                  ) : isLoadingImage ? (
+                    <div className="h-full w-full flex items-center justify-center font-mono text-xs text-[#FF4F00] p-4 text-center">
+                      <span className="h-2 w-2 rounded-full bg-[#FF4F00] animate-ping mr-2" />
+                      DECRYPTING RELIC SUBSTRATE...
+                    </div>
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center font-mono text-xs text-[#F7F7F5]/40 p-4 text-center">
+                      NO IMAGE ATTACHED
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#141416]/80 via-transparent to-transparent pointer-events-none rounded-2xl" />
+                  <div className="absolute bottom-3 left-3 flex items-center gap-1.5 font-mono text-[10px] text-emerald-400 tabular-nums">
                     <Unlock className="h-3.5 w-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">UNSEALED · EPOCH {capsule.year}</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="h-3.5 w-3.5 text-[#FF4F00]" />
-                    <span>SEALED UNTIL {capsule.year}</span>
-                  </>
-                )}
-              </div>
+                    <span>UNSEALED · EPOCH {capsule.year}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-7 flex flex-col justify-between">

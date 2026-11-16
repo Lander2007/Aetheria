@@ -3,6 +3,12 @@
 
 import { TimeCapsule } from "./types";
 import { encryptCapsulePayload } from "./crypto";
+import {
+  deleteEncryptedImageRecord,
+  clearAllEncryptedImageRecords,
+  saveEncryptedImageRecord,
+  generateSampleDemoImage,
+} from "./imageStore";
 
 export const VAULT_STORAGE_KEY = "aetheria_vault_v1";
 export const LEGACY_STORAGE_KEY = "aetheria_custom_capsules";
@@ -67,6 +73,7 @@ export function deleteStoredCapsule(id: string): void {
     const updated = current.filter((c) => c.id !== id);
     localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(updated));
     localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(updated));
+    deleteEncryptedImageRecord(id).catch(() => {});
     window.dispatchEvent(new CustomEvent("aetheria_vault_updated", { detail: updated }));
   } catch (err) {
     console.error("[Aetheria] Failed to delete from vault storage:", err);
@@ -81,6 +88,7 @@ export function resetAllVaultData(): void {
   try {
     localStorage.removeItem(VAULT_STORAGE_KEY);
     localStorage.removeItem(LEGACY_STORAGE_KEY);
+    clearAllEncryptedImageRecords().catch(() => {});
     window.dispatchEvent(new CustomEvent("aetheria_vault_updated", { detail: [] }));
   } catch (err) {
     console.error("[Aetheria] Failed to reset vault storage:", err);
@@ -89,17 +97,30 @@ export function resetAllVaultData(): void {
 
 /**
  * Seeds the 3 required live demo capsules:
- * 1. Already unlocked heartfelt note
+ * 1. Already unlocked heartfelt note (includes abstract generated sample image in IndexedDB)
  * 2. Unlocks in 20 seconds live (demonstrates auto-unseal without refresh)
  * 3. Passcode-protected capsule (passcode: "1234")
  */
 export async function seedDemoData(): Promise<TimeCapsule[]> {
   const now = Date.now();
 
-  // 1. Already unlocked note
+  // 1. Already unlocked note with generated sample image
   const note1Content =
     "If you are reading this, the silence of the alpine morning held true. Everything we built with our hands has stood the test of wind and season. Remember to look up.";
-  const enc1 = await encryptCapsulePayload(note1Content);
+  const sampleImg = await generateSampleDemoImage();
+  const enc1 = await encryptCapsulePayload(note1Content, undefined, sampleImg.buffer);
+
+  if (enc1.encryptedImage) {
+    await saveEncryptedImageRecord({
+      capsuleId: `demo-unlocked-${now}`,
+      ciphertext: enc1.encryptedImage.ciphertext,
+      iv: enc1.encryptedImage.iv,
+      mimeType: sampleImg.mimeType,
+      originalName: "archival-astrolabe.webp",
+      sizeBytes: sampleImg.buffer.byteLength,
+    });
+  }
+
   const capsule1: TimeCapsule = {
     id: `demo-unlocked-${now}`,
     year: 2026,
@@ -124,6 +145,9 @@ export async function seedDemoData(): Promise<TimeCapsule[]> {
     iv: enc1.iv,
     keyPackage: enc1.keyPackage,
     hasPasscode: false,
+    hasImage: true,
+    imageName: "archival-astrolabe.webp",
+    imageSizeBytes: sampleImg.buffer.byteLength,
   };
 
   // 2. Unlocks in 20 seconds live

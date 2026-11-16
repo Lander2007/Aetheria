@@ -6,10 +6,9 @@ import { Act1Manifesto } from "@/components/Act1Manifesto";
 import { Act2Tapes } from "@/components/Act2Tapes";
 import { Act3Steps } from "@/components/Act3Steps";
 import { Act4Gallery } from "@/components/Act4Gallery";
-import { Act5Simulator } from "@/components/Act5Simulator";
 import { CurtainFooter } from "@/components/CurtainFooter";
 import { TimeCapsule } from "@/lib/types";
-import { getStoredCapsules, saveStoredCapsule } from "@/lib/storage";
+import { getStoredCapsules } from "@/lib/storage";
 
 export default function Home() {
   const [userCapsules, setUserCapsules] = useState<TimeCapsule[]>([]);
@@ -26,10 +25,6 @@ export default function Home() {
     window.addEventListener("aetheria_vault_updated", loadVault);
     return () => window.removeEventListener("aetheria_vault_updated", loadVault);
   }, []);
-
-  const handleCapsuleCreated = (newCapsule: TimeCapsule) => {
-    saveStoredCapsule(newCapsule);
-  };
 
   return (
     <div className="relative w-full bg-[#E2E4E6]">
@@ -48,10 +43,7 @@ export default function Home() {
       {/* ACT 4: Horizontal Archive Gallery (350vh Sticky Track with Reverse-Parallax Year) */}
       <Act4Gallery customCapsules={userCapsules} />
 
-      {/* ACT 5: Interactive Time-Lock Simulator & Confirmation Receipt */}
-      <Act5Simulator onCapsuleCreated={handleCapsuleCreated} />
-
-      {/* ACT 6: Monumental Curtain Footer */}
+      {/* ACT 5: Monumental Curtain Footer */}
       <CurtainFooter />
     </div>
   );

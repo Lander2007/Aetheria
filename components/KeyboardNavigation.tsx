@@ -46,16 +46,14 @@ export function KeyboardNavigation() {
           break;
         }
         case "5": {
-          const el = document.getElementById("seal-lock");
-          if (el) el.scrollIntoView({ behavior: "smooth" });
+          window.location.href = "/create";
           break;
         }
         case "d":
         case "D": {
           await seedDemoData();
           showNotification("Demo data seeded: 3 capsules loaded into vault");
-          const el = document.getElementById("seal-lock");
-          if (el) el.scrollIntoView({ behavior: "smooth" });
+          window.location.href = "/vault";
           break;
         }
         case "t":

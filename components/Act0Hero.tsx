@@ -94,8 +94,7 @@ export function Act0Hero() {
   };
 
   const scrollToVault = () => {
-    const el = document.getElementById("seal-lock");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
+    window.location.href = "/create";
   };
 
   return (

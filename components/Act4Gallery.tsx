@@ -307,25 +307,52 @@ function CardInnerContent({ capsule }: { capsule: TimeCapsule }) {
         </div>
       </div>
 
-      {/* 3. Archival Photography with B&W to Color curtain transition on hover */}
-      <div className="relative my-2.5 h-36 w-full overflow-hidden rounded-xl bg-[#1E1E22] border border-white/5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={capsule.imageUrl}
-          alt={capsule.title}
-          data-cursor-image="true"
-          data-cursor-label={`OPEN ${capsule.year} ↗`}
-          className="h-full w-full object-cover grayscale contrast-125 transition-all duration-700 ease-out group-hover:grayscale-0 group-hover:scale-105"
-          loading="lazy"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#1E1E22] via-transparent to-transparent opacity-60" />
-        <div className="absolute bottom-2 left-3 font-mono text-[9px] uppercase tracking-widest text-[#F7F7F5]/70 tabular-nums">
-          AWAKENING: {capsule.targetDate}
-        </div>
-        <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1E1E22]/90 backdrop-blur-md rounded-full px-2.5 py-1 flex items-center gap-1 font-mono text-[9px] text-[#FF4F00] tabular-nums">
-          <span>INSPECT</span>
-          <ExternalLink className="h-2.5 w-2.5" />
-        </div>
+      {/* 3. Archival Photography Viewport: ZERO DOM <img> when locked */}
+      <div className="relative my-2.5 h-36 w-full overflow-hidden rounded-xl bg-[#1E1E22] border border-white/5 flex items-center justify-center">
+        {capsule.targetTimestamp > Date.now() ? (
+          /* LOCKED STATE: Strictly NO <img> in DOM */
+          <div className="flex flex-col items-center justify-center p-4 text-center select-none w-full h-full bg-[#141416]/75">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1E1E22] border border-[#FF4F00]/30 mb-1.5 shadow-inner">
+              <Lock className="h-3.5 w-3.5 text-[#FF4F00]" />
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-[#FF4F00] font-bold">
+              {capsule.hasImage ? "IMAGE SEALED" : "MEDIA SEALED"}
+            </span>
+            <span className="mt-1 font-mono text-[9px] text-[#F7F7F5]/40 uppercase tabular-nums">
+              AES-256 TIME-LOCKED
+            </span>
+            <div className="absolute bottom-2 left-3 font-mono text-[9px] uppercase tracking-widest text-[#F7F7F5]/70 tabular-nums">
+              AWAKENING: {capsule.targetDate}
+            </div>
+            <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1E1E22]/90 backdrop-blur-md rounded-full px-2.5 py-1 flex items-center gap-1 font-mono text-[9px] text-[#FF4F00] tabular-nums">
+              <span>INSPECT</span>
+              <ExternalLink className="h-2.5 w-2.5" />
+            </div>
+          </div>
+        ) : (
+          /* UNLOCKED STATE */
+          <>
+            {capsule.imageUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={capsule.imageUrl}
+                alt={capsule.title}
+                data-cursor-image="true"
+                data-cursor-label={`OPEN ${capsule.year} ↗`}
+                className="h-full w-full object-cover grayscale contrast-125 transition-all duration-700 ease-out group-hover:grayscale-0 group-hover:scale-105"
+                loading="lazy"
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1E1E22] via-transparent to-transparent opacity-60" />
+            <div className="absolute bottom-2 left-3 font-mono text-[9px] uppercase tracking-widest text-[#F7F7F5]/70 tabular-nums">
+              AWAKENING: {capsule.targetDate}
+            </div>
+            <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1E1E22]/90 backdrop-blur-md rounded-full px-2.5 py-1 flex items-center gap-1 font-mono text-[9px] text-[#FF4F00] tabular-nums">
+              <span>INSPECT</span>
+              <ExternalLink className="h-2.5 w-2.5" />
+            </div>
+          </>
+        )}
       </div>
 
       {/* 4. Content Area */}

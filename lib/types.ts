@@ -24,6 +24,9 @@ export interface TimeCapsule {
   salt?: string; // base64 encoded salt for PBKDF2
   keyPackage?: string; // base64 encoded raw key for non-passcode unlock
   hasPasscode?: boolean;
+  hasImage?: boolean;
+  imageName?: string;
+  imageSizeBytes?: number;
 }
 
 export interface StepPhase {

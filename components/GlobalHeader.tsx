@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight, Menu, X, Lock } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { GlitchLogo } from "./ui/GlitchLogo";
 import { HorologicalAudio } from "./HorologicalAudio";
 import { MagneticButton } from "./ui/MagneticButton";
@@ -10,25 +12,38 @@ import { MagneticButton } from "./ui/MagneticButton";
 interface NavItem {
   id: string;
   label: string;
+  path?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { id: "act-story", label: "Chamber" },
   { id: "act-method", label: "Matrix" },
   { id: "act-archive", label: "Timeline" },
-  { id: "seal-lock", label: "Vault" },
+  { id: "vault", label: "Vault", path: "/vault" },
 ];
 
 export function GlobalHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("act-story");
+  const pathname = usePathname();
+  const router = useRouter();
 
-  // Track active section on scroll
+  // Track active section on scroll if on home page
   useEffect(() => {
+    if (pathname === "/vault") {
+      setActiveSection("vault");
+      return;
+    }
+    if (pathname === "/create") {
+      setActiveSection("");
+      return;
+    }
+
     const handleScroll = () => {
       const scrollPosition = window.scrollY + 280;
       for (let i = NAV_ITEMS.length - 1; i >= 0; i--) {
         const item = NAV_ITEMS[i];
+        if (item.path) continue;
         const el = document.getElementById(item.id);
         if (el && el.offsetTop <= scrollPosition) {
           setActiveSection(item.id);
@@ -40,14 +55,29 @@ export function GlobalHeader() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [pathname]);
 
-  const scrollToSection = (id: string) => {
+  const handleNavClick = (item: NavItem) => {
     setMobileMenuOpen(false);
-    const element = document.getElementById(id);
+    if (item.path) {
+      router.push(item.path);
+      return;
+    }
+
+    if (pathname !== "/") {
+      router.push(`/#${item.id}`);
+      return;
+    }
+
+    const element = document.getElementById(item.id);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+  };
+
+  const navigateToCreate = () => {
+    setMobileMenuOpen(false);
+    router.push("/create");
   };
 
   return (
@@ -58,17 +88,19 @@ export function GlobalHeader() {
       <header className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-3rem)] max-w-[1360px] h-14 px-6 rounded-full bg-[#141416]/85 backdrop-blur-2xl border border-white/[0.08] shadow-[0_20px_50px_rgba(0,0,0,0.35)] flex items-center justify-between select-none">
         
         {/* Left: Clean Glitch Wordmark (Single-Line Footprint, Zero Gray Box) */}
-        <a
-          href="#"
+        <Link
+          href="/"
           onClick={(e) => {
-            e.preventDefault();
-            window.scrollTo({ top: 0, behavior: "smooth" });
+            if (pathname === "/") {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }
           }}
           title="Return to Zenith Epoch"
           className="flex items-center cursor-pointer"
         >
           <GlitchLogo />
-        </a>
+        </Link>
 
         {/* Center: Minimal Typographic Links (Azeret Mono + Tiny 4px Active Dot) */}
         <nav
@@ -81,7 +113,7 @@ export function GlobalHeader() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => scrollToSection(item.id)}
+                onClick={() => handleNavClick(item)}
                 className={`relative py-1 font-mono text-[11px] uppercase tracking-[0.2em] transition-colors duration-200 cursor-pointer ${
                   isActive
                     ? "text-[#F7F7F5] font-semibold"
@@ -111,10 +143,10 @@ export function GlobalHeader() {
           {/* Subtle 1px Vertical Divider */}
           <div className="hidden sm:block h-4 w-[1px] bg-white/10" />
 
-          {/* Sleek Compact CTA Pill (Forge Lock ↗) */}
+          {/* Sleek Compact CTA Pill (Forge Lock ↗) navigating to /create */}
           <MagneticButton
             magneticStrength={0.35}
-            onClick={() => scrollToSection("seal-lock")}
+            onClick={navigateToCreate}
             className="h-9 px-4 rounded-full bg-[#FF4F00] text-[#141416] hover:bg-[#F7F7F5] font-mono text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
           >
             <span>Forge Lock</span>
@@ -143,7 +175,7 @@ export function GlobalHeader() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => scrollToSection(item.id)}
+                onClick={() => handleNavClick(item)}
                 className="flex items-center justify-between border-b border-white/10 pb-4 text-left font-display text-2xl font-bold text-[#F7F7F5] hover:text-[#FF4F00] transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
@@ -160,7 +192,7 @@ export function GlobalHeader() {
           <div className="flex flex-col gap-4">
             <button
               type="button"
-              onClick={() => scrollToSection("seal-lock")}
+              onClick={navigateToCreate}
               className="flex w-full items-center justify-center gap-2 rounded-full bg-[#FF4F00] py-4 font-mono text-sm font-bold uppercase text-[#141416] shadow-[0_10px_30px_rgba(255,79,0,0.35)] cursor-pointer transition-transform active:scale-98"
             >
               <Lock className="h-4 w-4" />

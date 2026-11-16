@@ -8,6 +8,10 @@ export interface EncryptionResult {
   keyPackage?: string; // Base64 (raw AES key for non-passcode auto-unlock)
   shaKey: string;
   hasPasscode: boolean;
+  encryptedImage?: {
+    ciphertext: string; // Base64
+    iv: string; // Base64
+  };
 }
 
 export interface DecryptionParams {
@@ -59,13 +63,14 @@ export async function computeSha512(data: string): Promise<string> {
 }
 
 /**
- * Encrypts a message using AES-GCM (256-bit).
+ * Encrypts a message (and optional image buffer) using AES-GCM (256-bit).
  * If passcode is provided: derives key via PBKDF2 (100,000 iterations, SHA-256).
  * If no passcode: generates a random 256-bit AES key and exports it as keyPackage for client auto-unlock.
  */
 export async function encryptCapsulePayload(
   content: string,
-  passcode?: string
+  passcode?: string,
+  imageBuffer?: ArrayBuffer
 ): Promise<EncryptionResult> {
   const subtle = getSubtleCrypto();
   const enc = new TextEncoder();
@@ -104,12 +109,30 @@ export async function encryptCapsulePayload(
       enc.encode(content)
     );
 
+    let encryptedImage: { ciphertext: string; iv: string } | undefined;
+    if (imageBuffer && imageBuffer.byteLength > 0) {
+      const imgIv = crypto.getRandomValues(new Uint8Array(12));
+      const encryptedImgBuffer = await subtle.encrypt(
+        {
+          name: "AES-GCM",
+          iv: imgIv as unknown as BufferSource,
+        },
+        derivedKey,
+        imageBuffer
+      );
+      encryptedImage = {
+        ciphertext: bufferToBase64(encryptedImgBuffer),
+        iv: bufferToBase64(imgIv),
+      };
+    }
+
     return {
       ciphertext: bufferToBase64(encryptedBuffer),
       iv: bufferToBase64(iv),
       salt: bufferToBase64(salt),
       shaKey,
       hasPasscode: true,
+      encryptedImage,
     };
   } else {
     const aesKey = await subtle.generateKey(
@@ -133,32 +156,59 @@ export async function encryptCapsulePayload(
       enc.encode(content)
     );
 
+    let encryptedImage: { ciphertext: string; iv: string } | undefined;
+    if (imageBuffer && imageBuffer.byteLength > 0) {
+      const imgIv = crypto.getRandomValues(new Uint8Array(12));
+      const encryptedImgBuffer = await subtle.encrypt(
+        {
+          name: "AES-GCM",
+          iv: imgIv as unknown as BufferSource,
+        },
+        aesKey,
+        imageBuffer
+      );
+      encryptedImage = {
+        ciphertext: bufferToBase64(encryptedImgBuffer),
+        iv: bufferToBase64(imgIv),
+      };
+    }
+
     return {
       ciphertext: bufferToBase64(encryptedBuffer),
       iv: bufferToBase64(iv),
       keyPackage,
       shaKey,
       hasPasscode: false,
+      encryptedImage,
     };
   }
 }
 
 /**
- * Decrypts an encrypted capsule payload.
+ * Decrypts an encrypted capsule text payload.
  * Throws an error if the passcode is incorrect or payload is corrupted.
  */
 export async function decryptCapsulePayload(
   params: DecryptionParams
 ): Promise<string> {
-  const subtle = getSubtleCrypto();
-  const enc = new TextEncoder();
+  const decryptedBuffer = await decryptBinaryPayload(params);
   const dec = new TextDecoder();
+  return dec.decode(decryptedBuffer);
+}
 
+/**
+ * Decrypts an encrypted binary payload (such as image bytes).
+ */
+export async function decryptBinaryPayload(
+  params: DecryptionParams
+): Promise<ArrayBuffer> {
+  const subtle = getSubtleCrypto();
   const ivBytes = base64ToUint8Array(params.iv);
   const ciphertextBytes = base64ToUint8Array(params.ciphertext);
 
   if (params.salt && params.passcode) {
     const saltBytes = base64ToUint8Array(params.salt);
+    const enc = new TextEncoder();
     const baseKey = await subtle.importKey(
       "raw",
       enc.encode(params.passcode),
@@ -189,7 +239,7 @@ export async function decryptCapsulePayload(
         derivedKey,
         ciphertextBytes as unknown as BufferSource
       );
-      return dec.decode(decryptedBuffer);
+      return decryptedBuffer;
     } catch {
       throw new Error("Invalid passcode. The cryptographic seal rejected your key.");
     }
@@ -212,7 +262,7 @@ export async function decryptCapsulePayload(
         aesKey,
         ciphertextBytes as unknown as BufferSource
       );
-      return dec.decode(decryptedBuffer);
+      return decryptedBuffer;
     } catch {
       throw new Error("Decryption failed. Substrate or key corrupted.");
     }
@@ -220,4 +270,3 @@ export async function decryptCapsulePayload(
     throw new Error("Missing decryption key or passcode.");
   }
 }
-

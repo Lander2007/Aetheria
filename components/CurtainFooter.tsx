@@ -34,10 +34,7 @@ export function CurtainFooter() {
   };
 
   const scrollToVault = () => {
-    const el = document.getElementById("seal-lock");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    window.location.href = "/create";
   };
 
   return (
@@ -176,8 +173,7 @@ export function CurtainFooter() {
               onClick={async () => {
                 const { seedDemoData } = await import("@/lib/storage");
                 await seedDemoData();
-                const el = document.getElementById("seal-lock");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
+                window.location.href = "/vault";
               }}
               className="text-[#FF4F00] hover:underline cursor-pointer text-[11px]"
             >
