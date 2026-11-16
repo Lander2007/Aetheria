@@ -9,35 +9,26 @@ import { Act4Gallery } from "@/components/Act4Gallery";
 import { Act5Simulator } from "@/components/Act5Simulator";
 import { CurtainFooter } from "@/components/CurtainFooter";
 import { TimeCapsule } from "@/lib/types";
+import { getStoredCapsules, saveStoredCapsule } from "@/lib/storage";
 
 export default function Home() {
   const [userCapsules, setUserCapsules] = useState<TimeCapsule[]>([]);
 
-  // Load persisted user capsules from localStorage on mount
+  // Load persisted user capsules from localStorage on mount and on storage events
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("aetheria_custom_capsules");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setUserCapsules(parsed);
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
+    const loadVault = () => {
+      const stored = getStoredCapsules();
+      const publicOnly = stored.filter((c) => c.visibility !== "private");
+      setUserCapsules(publicOnly);
+    };
+
+    loadVault();
+    window.addEventListener("aetheria_vault_updated", loadVault);
+    return () => window.removeEventListener("aetheria_vault_updated", loadVault);
   }, []);
 
   const handleCapsuleCreated = (newCapsule: TimeCapsule) => {
-    setUserCapsules((prev) => {
-      const updated = [newCapsule, ...prev];
-      try {
-        localStorage.setItem("aetheria_custom_capsules", JSON.stringify(updated));
-      } catch (e) {
-        // ignore
-      }
-      return updated;
-    });
+    saveStoredCapsule(newCapsule);
   };
 
   return (

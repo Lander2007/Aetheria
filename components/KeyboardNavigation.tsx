@@ -2,13 +2,20 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Command, X, ArrowUp, Compass, Volume2 } from "lucide-react";
+import { Command, X, ArrowUp, Compass, Volume2, Sparkles, RefreshCw } from "lucide-react";
+import { seedDemoData, resetAllVaultData } from "@/lib/storage";
 
 export function KeyboardNavigation() {
   const [hudOpen, setHudOpen] = useState(false);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const showNotification = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
@@ -43,6 +50,14 @@ export function KeyboardNavigation() {
           if (el) el.scrollIntoView({ behavior: "smooth" });
           break;
         }
+        case "d":
+        case "D": {
+          await seedDemoData();
+          showNotification("Demo data seeded: 3 capsules loaded into vault");
+          const el = document.getElementById("seal-lock");
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+          break;
+        }
         case "t":
         case "T": {
           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -65,6 +80,21 @@ export function KeyboardNavigation() {
 
   return (
     <>
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, x: "-50%" }}
+            exit={{ opacity: 0, y: -20, x: "-50%" }}
+            className="fixed top-20 left-1/2 z-50 rounded-full bg-[#141416] border border-[#FF4F00] px-5 py-2.5 font-mono text-xs text-[#F7F7F5] shadow-2xl flex items-center gap-2"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-[#FF4F00]" />
+            <span>{notification}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Bottom Left Quick Shortcut Pill */}
       <div className="fixed bottom-6 left-6 z-40 hidden md:block">
         <button
@@ -133,6 +163,10 @@ export function KeyboardNavigation() {
                   <kbd className="rounded bg-[#1E1E22] px-2 py-0.5 text-[#FF4F00] border border-[#141416]">5</kbd>
                 </div>
                 <div className="flex items-center justify-between border-b border-[#F7F7F5]/10 pb-2">
+                  <span className="text-[#F7F7F5]/75 text-[#FF4F00] font-bold">Seed Live Demo Data (3 Capsules)</span>
+                  <kbd className="rounded bg-[#FF4F00] px-2 py-0.5 text-[#141416] font-extrabold">D</kbd>
+                </div>
+                <div className="flex items-center justify-between border-b border-[#F7F7F5]/10 pb-2">
                   <span className="text-[#F7F7F5]/75">Toggle Horological Sound</span>
                   <kbd className="rounded bg-[#1E1E22] px-2 py-0.5 text-[#FF4F00] border border-[#141416]">M</kbd>
                 </div>
@@ -142,8 +176,33 @@ export function KeyboardNavigation() {
                 </div>
               </div>
 
-              <div className="mt-6 border-t border-[#F7F7F5]/15 pt-4 text-center font-mono text-[10px] text-[#F7F7F5]/50">
-                SWISS TEMPORAL VAULT // PRESS [ESC] TO CLOSE
+              <div className="mt-6 flex items-center justify-between border-t border-[#F7F7F5]/15 pt-4 font-mono text-[10px]">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await seedDemoData();
+                    setHudOpen(false);
+                    showNotification("Demo data seeded!");
+                    const el = document.getElementById("seal-lock");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="text-[#FF4F00] hover:underline cursor-pointer"
+                >
+                  [SEED DEMO DATA]
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("Reset all local vault data?")) {
+                      resetAllVaultData();
+                      setHudOpen(false);
+                      showNotification("Vault data reset.");
+                    }
+                  }}
+                  className="text-rose-400 hover:underline cursor-pointer"
+                >
+                  [RESET ALL DATA]
+                </button>
               </div>
             </motion.div>
           </div>

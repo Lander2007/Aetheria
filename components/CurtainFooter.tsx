@@ -104,7 +104,7 @@ export function CurtainFooter() {
               onClick={scrollToVault}
               className="group flex items-center gap-3 rounded-full bg-[#FF4F00] px-8 py-4 font-mono text-sm font-extrabold uppercase tracking-wider text-[#141416] shadow-[0_10px_35px_rgba(255,79,0,0.35)] transition-colors hover:bg-[#F7F7F5] cursor-pointer tabular-nums"
             >
-              <span>Seal a memory +</span>
+              <span>Seal a memory</span>
               <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </MagneticButton>
           </div>
@@ -164,12 +164,38 @@ export function CurtainFooter() {
 
         {/* Bottom Architectural Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6 font-mono text-xs text-[#F7F7F5]/65 pt-4 border-t border-white/10">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="font-display font-bold text-sm text-[#F7F7F5]">
               Aetheria<span className="text-[10px] text-[#FF4F00]">®</span>
             </span>
             <span>—</span>
-            <span className="tabular-nums">Horology & Spatial Archive Edition</span>
+            <span className="tabular-nums">Horology & Spatial Archive</span>
+            <span className="hidden sm:inline text-white/20">•</span>
+            <button
+              type="button"
+              onClick={async () => {
+                const { seedDemoData } = await import("@/lib/storage");
+                await seedDemoData();
+                const el = document.getElementById("seal-lock");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="text-[#FF4F00] hover:underline cursor-pointer text-[11px]"
+            >
+              [D] LOAD DEMO DATA
+            </button>
+            <span className="text-white/20">•</span>
+            <button
+              type="button"
+              onClick={async () => {
+                if (confirm("Reset all local vault data?")) {
+                  const { resetAllVaultData } = await import("@/lib/storage");
+                  resetAllVaultData();
+                }
+              }}
+              className="text-[#F7F7F5]/40 hover:text-rose-400 transition-colors cursor-pointer text-[11px]"
+            >
+              RESET
+            </button>
           </div>
 
           <div className="flex items-center gap-6">
@@ -183,6 +209,11 @@ export function CurtainFooter() {
               <ArrowUp className="h-4 w-4 transition-transform group-hover:-translate-y-0.5" />
             </MagneticButton>
           </div>
+        </div>
+
+        {/* Cryptographic Honesty Note */}
+        <div className="mt-8 text-center font-mono text-[10px] text-[#F7F7F5]/40">
+          Time-lock enforced client-side by Aetheria. Content encrypted in-browser using AES-GCM 256 before storage.
         </div>
 
       </div>

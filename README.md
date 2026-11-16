@@ -1,76 +1,42 @@
-# 🌌 Aetheria® — Architectural Time Depository
+# 🌌 Aetheria® — Interactive Digital Time-Capsule Depository
 
 > **"Preserve the unseen."**  
-> An award-winning, editorial scroll-driven time-capsule platform where users seal letters, photographs, and promises into cryptographic relics destined to awaken only in appointed future horizons.
-
-[![Next.js 14](https://img.shields.io/badge/Framework-Next.js%2014-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/Language-TypeScript-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind%20CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Framer Motion](https://img.shields.io/badge/Motion-Framer%20Motion-purple?style=for-the-badge&logo=framer&logoColor=white)](https://www.framer.com/motion/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+> An interactive digital time-capsule web application built with Next.js 15, Tailwind CSS, Framer Motion, React Three Fiber, and the Web Crypto API. Sealed capsules are encrypted client-side using AES-GCM 256 and unlock only when appointed future horizons arrive.
 
 ---
 
-## 🎨 Visual Identity & Color System
+## 🏛️ Architecture & Security
 
-Aetheria features an architectural, editorial aesthetic driven by Swiss typography, exposed structural grid hairlines, and the **Yellow-Green & Creole Brown** master palette:
-
-| Token | Hex / Value | Architectural Role |
-| :--- | :--- | :--- |
-| **`--bg-primary`** | `#C6E385` | Dominant 70%+ canvas background (Yellow Green Shade) |
-| **`--bg-lime-soft`** | `#D3EC9A` | Subtle highlight glow & atmospheric illumination |
-| **`--ink-creole`** | `#1F0E06` | Primary display typography, solid cards, & central monolith |
-| **`--surface-umber`** | `#2B150B` | Elevated card surfaces, bento wells, and chamber vaults |
-| **`--border-creole`** | `rgba(31, 14, 6, 0.16)` | Exposed 1px Swiss architectural grid lines |
-| **`--ink-muted`** | `rgba(31, 14, 6, 0.62)` | Secondary metadata, coordinates, and technical timestamps |
-
----
-
-## 🏛️ Scroll-Driven Storytelling Chapters
-
-1. **Act 0: Expanding Monolith Portal (Hero)**
-   - Centered Creole Brown (`#1F0E06`) 3D monolith on `#C6E385` canvas with rotating astrolabe rings.
-   - Smooth live year ticker counting from `2026` to `2100`.
-   - Monumental split headline (*"Preserve the"* splits left, *"unseen."* splits right) as the portal expands to swallow the viewport.
-2. **Act 1: The Manifesto Chamber**
-   - Immersive dark vault interior (`#1F0E06`) with word-by-word scroll-linked illumination and vertical progress gauge.
-3. **Act 2: Three Quiet Steps (Method)**
-   - 3D perspective stacked card deck on `#C6E385` canvas.
-   - Rolling mechanical phase counter (`01`, `02`, `03`) synchronized directly with scroll progress.
-4. **Act 3: Public Constellation Archive**
-   - Parallax horizontal timeline slider with live watermark year odometer (`2026` $\to$ `2051`).
-   - Archival cards with countdowns, metadata tags, and cryptographic status.
-5. **Act 4: Interactive Time-Lock Simulator**
-   - Interactive console allowing users to test time-locking to future years (`2028` $\to$ `2080`), input recipients and messages, and trigger cryptographic seal animations.
-6. **Act 5: Monumental Footer**
-   - Deep Creole Brown curtain with generous padding, display headline (*"What will you leave behind?"*), and quick navigation.
+- **Client-Side Cryptographic Isolation:**
+  - Content encryption uses the **Web Crypto API (`window.crypto.subtle`)** with **AES-GCM (256-bit)**.
+  - **Passcode Protection:** Derives keys via **PBKDF2** (100,000 iterations, SHA-256, random 16-byte cryptographic salt).
+  - **Non-Passcode Time-Locks:** Generates a random 256-bit AES key. The client refuses decryption during the locked state, displaying zero plaintext. Upon target epoch arrival, the client automatically unseals and decrypts the payload.
+  - **Temporal Integrity:** SHA-512 audit verification keys.
+- **Persistence (`localStorage`):**
+  - Stored under schema `aetheria_vault_v1` with event-driven cross-component synchronization (`aetheria_vault_updated`).
+  - Survives browser reloads and sessions.
+- **Live Horological Countdown (`useCountdown`):**
+  - Accurate to the second with UTC timestamps.
+  - Automatic live transition from **TIME-LOCKED** $\to$ **UNLOCKED** without requiring a page refresh.
+- **Dedicated Capsule Route:**
+  - Shareable route `/c/[id]` allows direct viewing and unsealing of individual capsules.
 
 ---
 
-## 🚀 Getting Started
+## ⚡ Quick Start
 
-### Prerequisites
-- Node.js 18.17+ or 20+
-- npm, pnpm, or yarn
-
-### Installation
-
+### 1. Installation
 ```bash
-# Clone the repository
-git clone https://github.com/Lander2007/Aetheria.git
-cd Aetheria
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
 ```
 
+### 2. Development Server
+```bash
+npm run dev
+```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Production Build
-
+### 3. Production Build & Start
 ```bash
 npm run build
 npm run start
@@ -78,24 +44,30 @@ npm run start
 
 ---
 
-## 📂 Project Structure
+## 🚀 Deployment to Vercel
 
-```
-Aetheria/
-├── app/
-│   ├── globals.css        # CSS variables & Tailwind directives
-│   ├── icon.svg           # Brand favicon vector
-│   ├── layout.tsx         # Root layout with fonts & theme metadata
-│   └── page.tsx           # Full scroll-driven experience (Acts 0–5)
-├── components/            # Reusable UI primitives & layout modules
-├── lib/                   # Utility helpers
-├── public/                # Static assets & vector marks
-├── tailwind.config.ts     # Architectural design tokens & themes
-└── tsconfig.json          # TypeScript compiler options
-```
+Aetheria is 100% standard Next.js (App Router) and is ready for 1-click deployment on Vercel:
+
+1. Push your repository to GitHub.
+2. Import the project in the [Vercel Dashboard](https://vercel.com/new).
+3. Framework Preset: **Next.js**
+4. Root Directory: `./`
+5. Click **Deploy**. Zero environment variables required for core functionality.
 
 ---
 
-## 📜 License
+## ⌨️ Shortcuts & Demo Mode
 
-Distributed under the MIT License.
+| Key | Action |
+| :--- | :--- |
+| **`D`** | **Seed Live Demo Data** (Loads 3 demo capsules: Unlocked note, 20s live unseal, Passcode capsule `1234`) |
+| **`?`** | Open Horological Shortcuts HUD |
+| **`1` - `5`** | Navigate between Chapters (Initiation, Chamber, Steps, Archive, Vault) |
+| **`M`** | Toggle Horological ticking audio synthesis |
+| **`T`** | Smooth scroll back to top |
+
+---
+
+## 📜 Cryptographic Honesty Note
+
+*Time-lock enforced client-side by Aetheria. Content encrypted in-browser using AES-GCM 256 before storage.*
