@@ -114,6 +114,13 @@ export function CapsuleModal({ capsule, onClose }: CapsuleModalProps) {
 
   if (!capsule) return null;
 
+  const displayTargetDate = capsule.targetDateIso
+    ? new Date(capsule.targetDateIso).toLocaleString("en-US", {
+        dateStyle: "medium",
+        timeStyle: "medium",
+      })
+    : capsule.targetDate;
+
   const copyHash = () => {
     navigator.clipboard.writeText(capsule.shaKey);
     setCopiedKey(true);
@@ -170,7 +177,8 @@ CAPSULE ID:     ${capsule.id}
 TITLE:          ${capsule.title}
 CATEGORY:       ${capsule.category}
 CUSTODIAN:      ${capsule.custodian}
-AWAKENING DATE: ${capsule.targetDate} (EPOCH ${capsule.year})
+AWAKENING DATE: ${displayTargetDate} (EPOCH ${capsule.year})
+TIMEZONE SPEC:  UTC ISO: ${capsule.targetDateIso || "ARCHIVAL HOROLOGY"}
 CIPHER SUITE:   AES-256-GCM / VDF WESOLOWSKI PROTOCOL
 STORAGE MEDIUM: 5D OPTICAL QUARTZ SUBSTRATE (1,000+ YR HALF-LIFE)
 GEO-COORDINATE: 46.2044° N, 6.1432° E (SWISS HOROLOGICAL OBSERVATORY)
@@ -365,7 +373,7 @@ STATUS: ${countdown.isUnlocked ? "UNLOCKED & DECRYPTED" : "CRYPTOGRAPHICALLY TIM
                       : "TEMPORAL COUNTDOWN UNTIL OPENING"}
                   </span>
                   <span className="font-mono text-[9px] text-[#FF4F00] tabular-nums">
-                    TARGET: {capsule.targetDate}
+                    TARGET: {displayTargetDate}
                   </span>
                 </div>
                 {countdown.isUnlocked ? (

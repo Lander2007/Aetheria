@@ -115,6 +115,7 @@ export async function seedDemoData(): Promise<TimeCapsule[]> {
     imageUrl:
       "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80",
     targetTimestamp: now - 3600 * 1000,
+    targetDateIso: new Date(now - 3600 * 1000).toISOString(),
     createdAt: new Date(now - 7200 * 1000).toISOString(),
     type: "memory",
     visibility: "public",
@@ -146,6 +147,7 @@ export async function seedDemoData(): Promise<TimeCapsule[]> {
     imageUrl:
       "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
     targetTimestamp: targetTime2,
+    targetDateIso: new Date(targetTime2).toISOString(),
     createdAt: new Date(now).toISOString(),
     type: "message",
     visibility: "public",
@@ -172,6 +174,7 @@ export async function seedDemoData(): Promise<TimeCapsule[]> {
     imageUrl:
       "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80",
     targetTimestamp: now - 1000, // Time passed, but guarded by passcode
+    targetDateIso: new Date(now - 1000).toISOString(),
     createdAt: new Date(now - 10000).toISOString(),
     type: "goal",
     visibility: "private",

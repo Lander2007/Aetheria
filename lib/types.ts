@@ -5,6 +5,7 @@ export interface TimeCapsule {
   id: string;
   year: number;
   targetDate: string; // ISO or formatted date
+  targetDateIso?: string; // UTC ISO string
   title: string;
   category: string;
   custodian: string;

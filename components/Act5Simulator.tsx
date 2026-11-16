@@ -18,10 +18,9 @@ import {
   Eye,
   Clock,
   Archive,
-  PlusCircle,
+  AlertCircle,
 } from "lucide-react";
 import confetti from "canvas-confetti";
-import { AVAILABLE_YEARS } from "@/lib/data";
 import { TimeCapsule, CapsuleType, CapsuleVisibility } from "@/lib/types";
 import { encryptCapsulePayload } from "@/lib/crypto";
 import {
@@ -61,23 +60,88 @@ const TESTAMENT_PRESETS = [
   },
 ];
 
+// Helper: pad with zero
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+// Helper: format local date YYYY-MM-DD
+function toLocalDateString(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+// Helper: format local time HH:mm:ss
+function toLocalTimeString(d: Date): string {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+// Helper: parse local date & time strings into a local Date object without off-by-one errors
+function parseLocalDateTime(dateStr: string, timeStr: string): Date | null {
+  if (!dateStr) return null;
+  const dateParts = dateStr.split("-").map(Number);
+  if (dateParts.length !== 3 || dateParts.some(isNaN)) return null;
+  const [year, month, day] = dateParts;
+
+  let hours = 0;
+  let minutes = 0;
+  let seconds = 0;
+  if (timeStr) {
+    const timeParts = timeStr.split(":").map(Number);
+    hours = timeParts[0] || 0;
+    minutes = timeParts[1] || 0;
+    seconds = timeParts[2] || 0;
+  }
+
+  const result = new Date(year, month - 1, day, hours, minutes, seconds);
+  return isNaN(result.getTime()) ? null : result;
+}
+
+// Quick Presets: +30 SEC (for demo), +1 MIN, +1 HOUR, +1 DAY, +1 WEEK, +1 YEAR
+const TIME_PRESETS = [
+  { label: "+30 SEC", getTarget: () => new Date(Date.now() + 30 * 1000) },
+  { label: "+1 MIN", getTarget: () => new Date(Date.now() + 60 * 1000) },
+  { label: "+1 HOUR", getTarget: () => new Date(Date.now() + 3600 * 1000) },
+  { label: "+1 DAY", getTarget: () => new Date(Date.now() + 86400 * 1000) },
+  { label: "+1 WEEK", getTarget: () => new Date(Date.now() + 7 * 86400 * 1000) },
+  {
+    label: "+1 YEAR",
+    getTarget: () => {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() + 1);
+      return d;
+    },
+  },
+];
+
 export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
-  const currentYear = 2026;
   const [activeTab, setActiveTab] = useState<"forge" | "vault">("forge");
   const [vaultFilter, setVaultFilter] = useState<"all" | "locked" | "unlocked">("all");
   const [selectedVaultCapsule, setSelectedVaultCapsule] = useState<TimeCapsule | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Form State
-  const [selectedYear, setSelectedYear] = useState(2045);
-  const [customDateTime, setCustomDateTime] = useState<string>("");
-  const [quickDurationSeconds, setQuickDurationSeconds] = useState<number | null>(null);
   const [recipient, setRecipient] = useState("");
   const [title, setTitle] = useState("");
   const [capsuleType, setCapsuleType] = useState<CapsuleType>("message");
   const [visibility, setVisibility] = useState<CapsuleVisibility>("public");
   const [passcode, setPasscode] = useState("");
   const [message, setMessage] = useState("");
+
+  // Live Date and Time Picker State (defaults to +30 SEC for instant live demo readiness)
+  const [unlockDate, setUnlockDate] = useState<string>(() => {
+    return toLocalDateString(new Date(Date.now() + 30 * 1000));
+  });
+  const [unlockTime, setUnlockTime] = useState<string>(() => {
+    return toLocalTimeString(new Date(Date.now() + 30 * 1000));
+  });
+
+  // Current ticker for live preview line updates
+  const [nowTick, setNowTick] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Today string for date input min attribute
+  const todayMinStr = useMemo(() => toLocalDateString(new Date()), []);
 
   // Sealing & scramble state
   const [isScrambling, setIsScrambling] = useState(false);
@@ -104,29 +168,103 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
     return () => window.removeEventListener("aetheria_vault_updated", handleUpdate);
   }, []);
 
-  // Compute calculated target timestamp & formatted date
-  const { targetTimestamp, targetDateStr } = useMemo(() => {
-    const now = Date.now();
-    if (quickDurationSeconds !== null) {
-      const ts = now + quickDurationSeconds * 1000;
-      const dateStr =
-        quickDurationSeconds <= 60
-          ? `${quickDurationSeconds}s Demo Unseal (${new Date(ts).toLocaleTimeString()})`
-          : new Date(ts).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-      return { targetTimestamp: ts, targetDateStr: dateStr };
-    }
-    if (customDateTime) {
-      const ts = new Date(customDateTime).getTime();
-      return {
-        targetTimestamp: ts,
-        targetDateStr: new Date(ts).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
-      };
-    }
-    const ts = new Date(`${selectedYear}-11-06T00:00:00Z`).getTime();
-    return { targetTimestamp: ts, targetDateStr: `06 November ${selectedYear}` };
-  }, [quickDurationSeconds, customDateTime, selectedYear]);
+  // Target moment calculations & validation
+  const targetMoment = useMemo(() => {
+    return parseLocalDateTime(unlockDate, unlockTime);
+  }, [unlockDate, unlockTime]);
 
-  const deltaYears = Math.max(1, selectedYear - currentYear);
+  const targetTimestamp = targetMoment ? targetMoment.getTime() : 0;
+  const targetDateIso = targetMoment ? targetMoment.toISOString() : "";
+  const diffSeconds = targetMoment ? Math.floor((targetTimestamp - nowTick) / 1000) : 0;
+
+  // Validation: must be at least 10 seconds in future
+  const { isValidEpoch, epochError, relativePreviewStr, localPreviewStr, relativeReadoutHeading } =
+    useMemo(() => {
+      if (!unlockDate) {
+        return {
+          isValidEpoch: false,
+          epochError: "Please select an unlock date.",
+          relativePreviewStr: "AWAITING DATE",
+          localPreviewStr: "—",
+          relativeReadoutHeading: "Select an epoch.",
+        };
+      }
+      if (!unlockTime) {
+        return {
+          isValidEpoch: false,
+          epochError: "Please select an unlock time.",
+          relativePreviewStr: "AWAITING TIME",
+          localPreviewStr: "—",
+          relativeReadoutHeading: "Select an epoch.",
+        };
+      }
+      if (!targetMoment || isNaN(targetMoment.getTime())) {
+        return {
+          isValidEpoch: false,
+          epochError: "Invalid date or time format.",
+          relativePreviewStr: "INVALID MOMENT",
+          localPreviewStr: "—",
+          relativeReadoutHeading: "Invalid epoch.",
+        };
+      }
+      if (diffSeconds < 10) {
+        return {
+          isValidEpoch: false,
+          epochError: "Unlock moment must be at least 10 seconds in the future.",
+          relativePreviewStr: "PAST OR IMMINENT (MIN 10S REQUIRED)",
+          localPreviewStr: targetMoment.toLocaleString("en-US", {
+            dateStyle: "medium",
+            timeStyle: "medium",
+          }),
+          relativeReadoutHeading: "Moment must be in future.",
+        };
+      }
+
+      // Valid future moment
+      const d = Math.floor(diffSeconds / (3600 * 24));
+      const h = Math.floor((diffSeconds % (3600 * 24)) / 3600);
+      const m = Math.floor((diffSeconds % 3600) / 60);
+      const s = diffSeconds % 60;
+
+      let preview = "OPENS IN ";
+      if (d > 0) preview += `${d}D `;
+      preview += `${pad2(h)}H ${pad2(m)}M ${pad2(s)}S`;
+
+      // Readout heading
+      let heading = "";
+      if (diffSeconds < 60) {
+        heading = `In ${diffSeconds} seconds.`;
+      } else if (diffSeconds < 3600) {
+        heading = `In ${Math.ceil(diffSeconds / 60)} minutes.`;
+      } else if (diffSeconds < 86400) {
+        heading = `In ${Math.ceil(diffSeconds / 3600)} hours.`;
+      } else if (diffSeconds < 86400 * 365) {
+        heading = `In ${Math.ceil(diffSeconds / 86400)} days.`;
+      } else {
+        const yrs = Math.max(1, Math.round(diffSeconds / (86400 * 365)));
+        heading = `In ${yrs} ${yrs === 1 ? "year" : "years"}.`;
+      }
+
+      const localStr = targetMoment.toLocaleString("en-US", {
+        dateStyle: "full",
+        timeStyle: "medium",
+      });
+
+      return {
+        isValidEpoch: true,
+        epochError: null,
+        relativePreviewStr: preview,
+        localPreviewStr: localStr,
+        relativeReadoutHeading: heading,
+      };
+    }, [unlockDate, unlockTime, targetMoment, diffSeconds]);
+
+  const targetDateFormatted = targetMoment
+    ? targetMoment.toLocaleString("en-US", {
+        dateStyle: "medium",
+        timeStyle: "medium",
+      })
+    : "—";
 
   // Live Hexadecimal / Cipher Stream computed from message
   const liveCipherHex = useMemo(() => {
@@ -147,7 +285,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
   }, [message]);
 
   const executeSeal = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !isValidEpoch || !targetMoment) return;
 
     setIsScrambling(true);
 
@@ -176,12 +314,13 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
             title.trim() ||
             (recipient.trim()
               ? `To ${recipient.trim()}`
-              : `Letter to ${quickDurationSeconds ? "the Present" : selectedYear}`);
+              : `Letter to ${targetMoment.getFullYear()}`);
 
           const newCapsule: TimeCapsule = {
             id: `capsule-${Date.now()}`,
-            year: quickDurationSeconds ? 2026 : selectedYear,
-            targetDate: targetDateStr,
+            year: targetMoment.getFullYear(),
+            targetDate: targetDateFormatted,
+            targetDateIso: targetDateIso,
             title: finalTitle,
             category: capsuleType.toUpperCase(),
             custodian: recipient.trim() || "Future Self",
@@ -228,7 +367,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
 
   // Hold-to-Forge Event Handlers (1.2s = 1200ms)
   const startHolding = () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !isValidEpoch) return;
     setIsHolding(true);
     holdStartRef.current = Date.now();
 
@@ -269,9 +408,10 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
     setTitle("");
     setRecipient("");
     setPasscode("");
-    setQuickDurationSeconds(null);
-    setCustomDateTime("");
     setHoldProgress(0);
+    const future = new Date(Date.now() + 30 * 1000);
+    setUnlockDate(toLocalDateString(future));
+    setUnlockTime(toLocalTimeString(future));
   };
 
   const applyPreset = (preset: (typeof TESTAMENT_PRESETS)[0]) => {
@@ -303,10 +443,10 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
       className="relative w-full bg-[#E2E4E6] pt-28 pb-16 md:pt-36 md:pb-24 px-4 md:px-8 text-[#141416] overflow-hidden"
     >
       {/* Elevated Recessed Floating Architectural Island */}
-      <div className="max-w-[1440px] mx-auto rounded-[40px] bg-[#D8DBDE]/60 backdrop-blur-md p-8 sm:p-12 md:p-16 border border-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_30px_80px_rgba(20,20,22,0.06)]">
+      <div className="max-w-[1440px] mx-auto rounded-[32px] sm:rounded-[40px] bg-[#D8DBDE]/60 backdrop-blur-md p-5 sm:p-12 md:p-16 border border-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_30px_80px_rgba(20,20,22,0.06)]">
         <div className="mx-auto max-w-4xl">
           {/* Section Header */}
-          <div className="flex flex-col items-center text-center mb-12">
+          <div className="flex flex-col items-center text-center mb-10">
             <div className="flex items-center gap-2 mb-3">
               <span className="h-2 w-2 rounded-full bg-[#FF4F00] animate-pulse" />
               <span className="font-mono text-xs uppercase tracking-widest text-[#141416]/75 font-semibold tabular-nums">
@@ -318,7 +458,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
               Forge the <span className="font-editorial italic font-light text-[#FF4F00]">lock.</span>
             </h2>
             <p className="mt-4 max-w-xl font-sans text-sm md:text-base text-[#141416]/85 leading-relaxed">
-              Select a target epoch. Inscribe your testament, inspect the real-time cipher stream, and press-and-hold to forge your cryptographic time-lock.
+              Select an exact awakening epoch. Inscribe your testament, inspect the real-time cipher stream, and press-and-hold to forge your cryptographic time-lock.
             </p>
 
             {/* Navigation Tabs (Forge vs Vault Registry) */}
@@ -361,91 +501,24 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
 
           {activeTab === "forge" ? (
             <>
-              {/* Interactive Year Selector Strip & Presets */}
-              <div className="mb-10 flex flex-col items-center w-full max-w-xl mx-auto">
-                <span className="font-mono text-[11px] uppercase tracking-widest text-[#141416]/70 mb-4 font-semibold tabular-nums">
-                  SELECT AWAKENING EPOCH
-                </span>
-
-                {/* Quick Epoch Pills */}
-                <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 rounded-full bg-[#141416]/10 p-2 border border-[#141416]/15 mb-4">
-                  <MagneticButton
-                    magneticStrength={0.4}
-                    onClick={() => {
-                      setQuickDurationSeconds(20);
-                      setCustomDateTime("");
-                    }}
-                    className={`rounded-full px-4 py-2 font-mono text-xs font-bold transition-all duration-300 cursor-pointer tabular-nums ${
-                      quickDurationSeconds === 20
-                        ? "bg-[#FF4F00] text-[#141416] shadow-[0_4px_14px_rgba(255,79,0,0.35)] scale-105"
-                        : "text-[#141416]/80 hover:bg-[#141416]/10 hover:text-[#141416]"
-                    }`}
-                  >
-                    ⚡ 20s (DEMO)
-                  </MagneticButton>
-
-                  {AVAILABLE_YEARS.map((yr) => {
-                    const isSelected = yr === selectedYear && quickDurationSeconds === null && !customDateTime;
-                    return (
-                      <MagneticButton
-                        key={yr}
-                        magneticStrength={0.4}
-                        onClick={() => {
-                          setSelectedYear(yr);
-                          setQuickDurationSeconds(null);
-                          setCustomDateTime("");
-                        }}
-                        className={`rounded-full px-4 sm:px-5 py-2 font-mono text-xs font-bold transition-all duration-300 cursor-pointer tabular-nums ${
-                          isSelected
-                            ? "bg-[#FF4F00] text-[#141416] shadow-[0_4px_14px_rgba(255,79,0,0.35)] scale-105"
-                            : "text-[#141416]/80 hover:bg-[#141416]/10 hover:text-[#141416]"
-                        }`}
-                      >
-                        {yr}
-                      </MagneticButton>
-                    );
-                  })}
-                </div>
-
-                {/* Range Slider */}
-                <div className="w-full flex items-center gap-4 px-4 font-mono text-xs text-[#141416]/70 font-semibold tabular-nums">
-                  <span>2027</span>
-                  <input
-                    type="range"
-                    min="2027"
-                    max="2100"
-                    value={selectedYear}
-                    onChange={(e) => {
-                      setSelectedYear(parseInt(e.target.value, 10));
-                      setQuickDurationSeconds(null);
-                      setCustomDateTime("");
-                    }}
-                    className="w-full h-1.5 bg-[#141416]/20 rounded-lg appearance-none cursor-pointer accent-[#FF4F00]"
-                  />
-                  <span>2100</span>
-                </div>
-              </div>
-
-              {/* Dynamic Readout Box */}
+              {/* Dynamic Readout Box Synchronized with Date/Time Picker */}
               <motion.div
-                key={`${selectedYear}-${quickDurationSeconds}`}
+                key={targetTimestamp}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
                 className="mb-10 text-center"
               >
                 <div className="font-display text-3xl sm:text-4xl md:text-5xl font-black text-[#141416] tracking-tight tabular-nums">
-                  {quickDurationSeconds
-                    ? `In ${quickDurationSeconds} seconds.`
-                    : `In ${deltaYears} ${deltaYears === 1 ? "year" : "years"}.`}
+                  {relativeReadoutHeading}
                 </div>
                 <div className="mt-2 font-editorial italic text-lg sm:text-xl text-[#141416]/85">
-                  Your message will unlock on {targetDateStr}.
+                  Your message will unlock on {targetDateFormatted}.
                 </div>
               </motion.div>
 
               {/* Vault Console Card */}
-              <div className="relative overflow-hidden rounded-3xl bg-[#141416] p-8 sm:p-12 text-[#F7F7F5] shadow-[0_30px_90px_rgba(20,20,22,0.4)] border border-[#F7F7F5]/15">
+              <div className="relative overflow-hidden rounded-3xl bg-[#141416] p-5 sm:p-10 md:p-12 text-[#F7F7F5] shadow-[0_30px_90px_rgba(20,20,22,0.4)] border border-[#F7F7F5]/15">
                 <AnimatePresence mode="wait">
                   {!sealedReceipt ? (
                     /* Input Console Form */
@@ -468,7 +541,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                           </span>
                           <span className="text-[#F7F7F5]/30">•</span>
                           <span className="font-mono text-xs text-[#F7F7F5]/60 tabular-nums">
-                            {quickDurationSeconds ? "DEMO MODE (20s)" : `EPOCH ${selectedYear}`}
+                            {targetMoment ? `EPOCH ${targetMoment.getFullYear()}` : "AWAITING EPOCH"}
                           </span>
                         </div>
 
@@ -496,6 +569,100 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                             </MagneticButton>
                           ))}
                         </div>
+                      </div>
+
+                      {/* REAL UNLOCK DATE AND TIME PICKER (ADD-ON REQUIREMENT) */}
+                      <div className="flex flex-col gap-2.5 rounded-2xl bg-[#141416] p-4 sm:p-5 border border-white/10 shadow-inner">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <label
+                            htmlFor="unlock-date"
+                            className="font-mono text-xs uppercase tracking-wider text-[#F7F7F5]/85 font-semibold flex items-center gap-2"
+                          >
+                            <Clock className="h-3.5 w-3.5 text-[#FF4F00]" />
+                            <span>UNLOCK EPOCH</span>
+                          </label>
+                          <span className="font-mono text-[10px] text-[#FF4F00] tracking-wider font-semibold tabular-nums">
+                            LOCAL TIMEZONE · ENFORCED ON-CLIENT
+                          </span>
+                        </div>
+
+                        {/* Quick Presets as Small Pill Buttons */}
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1 pb-2">
+                          <span className="font-mono text-[10px] uppercase text-[#F7F7F5]/50 mr-1 font-semibold">
+                            QUICK PRESETS:
+                          </span>
+                          {TIME_PRESETS.map((p) => (
+                            <button
+                              key={p.label}
+                              type="button"
+                              onClick={() => {
+                                const target = p.getTarget();
+                                setUnlockDate(toLocalDateString(target));
+                                setUnlockTime(toLocalTimeString(target));
+                              }}
+                              className="rounded-full border border-[#F7F7F5]/20 bg-[#1E1E22] px-3 py-1 font-mono text-[11px] font-bold text-[#F7F7F5]/85 hover:border-[#FF4F00] hover:text-[#FF4F00] hover:bg-[#28282D] transition-all cursor-pointer select-none active:scale-95"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Native Date and Time Inputs Styled to Match Form Inputs */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="flex flex-col gap-1.5">
+                            <label
+                              htmlFor="unlock-date"
+                              className="font-mono text-[10px] uppercase tracking-wider text-[#F7F7F5]/55 font-medium"
+                            >
+                              Awakening Date
+                            </label>
+                            <input
+                              id="unlock-date"
+                              type="date"
+                              min={todayMinStr}
+                              value={unlockDate}
+                              onChange={(e) => setUnlockDate(e.target.value)}
+                              required
+                              className="w-full rounded-xl bg-[#1E1E22] px-4 py-3 font-mono text-sm text-[#F7F7F5] border border-[#141416] focus:border-[#FF4F00] focus:ring-1 focus:ring-[#FF4F00] focus:outline-none transition-colors cursor-pointer [color-scheme:dark]"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1.5">
+                            <label
+                              htmlFor="unlock-time"
+                              className="font-mono text-[10px] uppercase tracking-wider text-[#F7F7F5]/55 font-medium"
+                            >
+                              Awakening Time (HH:MM:SS)
+                            </label>
+                            <input
+                              id="unlock-time"
+                              type="time"
+                              step="1"
+                              value={unlockTime}
+                              onChange={(e) => setUnlockTime(e.target.value)}
+                              required
+                              className="w-full rounded-xl bg-[#1E1E22] px-4 py-3 font-mono text-sm text-[#F7F7F5] border border-[#141416] focus:border-[#FF4F00] focus:ring-1 focus:ring-[#FF4F00] focus:outline-none transition-colors cursor-pointer [color-scheme:dark]"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Validation Error Message or Live Preview Line */}
+                        {epochError ? (
+                          <div className="flex items-center gap-1.5 text-[#FF4F00] text-xs font-mono mt-1 bg-[#FF4F00]/10 p-2.5 rounded-lg border border-[#FF4F00]/30">
+                            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                            <span>{epochError}</span>
+                          </div>
+                        ) : (
+                          <div className="rounded-xl bg-[#1E1E22] p-3 border border-white/5 mt-1 font-mono text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 tabular-nums">
+                            <div className="flex items-center gap-2 text-[#FF4F00] font-bold tracking-wide">
+                              <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span>{relativePreviewStr}</span>
+                            </div>
+                            <div className="text-[11px] text-[#F7F7F5]/75 flex items-center gap-2">
+                              <span>LOCAL: {localPreviewStr}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Type and Visibility Row */}
@@ -661,6 +828,8 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                           <span className="font-mono text-[11px] text-[#F7F7F5]/55 text-center sm:text-left tabular-nums">
                             {isHolding
                               ? "ENGRAVING IN PROGRESS... MAINTAIN PRESSURE"
+                              : !isValidEpoch
+                              ? "Select a valid future epoch (min 10s) to enable seal."
                               : "Press & hold 1.2s (or click) to forge cryptographic time-lock."}
                           </span>
 
@@ -673,7 +842,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                             onMouseLeave={cancelHolding}
                             onTouchStart={startHolding}
                             onTouchEnd={cancelHolding}
-                            disabled={!message.trim()}
+                            disabled={!message.trim() || !isValidEpoch}
                             className="relative group overflow-hidden flex w-full sm:w-auto items-center justify-center gap-3 rounded-full bg-[#1E1E22] border border-[#FF4F00] px-8 py-4 font-mono text-xs font-extrabold uppercase tracking-wider text-[#F7F7F5] shadow-[0_8px_25px_rgba(255,79,0,0.25)] transition-all select-none active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                           >
                             {/* Active Fill Bar on Hold */}
@@ -729,11 +898,16 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono text-xs tabular-nums">
                           <div>
                             <span className="text-[#F7F7F5]/55 uppercase tracking-wider text-[10px] block mb-1">
-                              DESIGNATED AWAKENING
+                              DESIGNATED AWAKENING (LOCAL TIME)
                             </span>
                             <span className="font-bold text-base text-[#FF4F00]">
                               {sealedReceipt.targetDate}
                             </span>
+                            {sealedReceipt.targetDateIso && (
+                              <span className="text-[10px] text-[#F7F7F5]/45 block mt-0.5 font-mono">
+                                UTC: {sealedReceipt.targetDateIso}
+                              </span>
+                            )}
                           </div>
 
                           <div>
@@ -915,6 +1089,13 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                 ) : (
                   filteredVaultCapsules.map((capsule) => {
                     const isUnlocked = capsule.targetTimestamp <= Date.now();
+                    const displayTarget = capsule.targetDateIso
+                      ? new Date(capsule.targetDateIso).toLocaleString("en-US", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                      : capsule.targetDate;
+
                     return (
                       <div
                         key={capsule.id}
@@ -947,7 +1128,7 @@ export function Act5Simulator({ onCapsuleCreated }: Act5SimulatorProps) {
                           <div className="flex items-center gap-3 font-mono text-[11px] text-[#F7F7F5]/50 mt-1 tabular-nums">
                             <span>Custodian: {capsule.custodian}</span>
                             <span>•</span>
-                            <span>Target: {capsule.targetDate}</span>
+                            <span>Target: {displayTarget}</span>
                           </div>
                         </div>
 
